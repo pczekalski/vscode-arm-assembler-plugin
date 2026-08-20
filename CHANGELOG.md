@@ -13,6 +13,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - SSH password stored in the encrypted VS Code secret storage, host key confirmation on first use
 - ARM assembly syntax highlighting for AArch64 and AArch32
 - Clickable assembler diagnostics for local and remote builds
+- Optional `readelf` pass after `size`, local and remote, with configurable flags (`-W -h -s -S` by default)
 - Sidebar and status bar integration
 - Values entered in the remote configuration prompts are written to the User settings scope, and any
   workspace override of the same key is refreshed so the Settings editor never disagrees with them

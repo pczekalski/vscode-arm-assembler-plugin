@@ -746,6 +746,22 @@ export async function remoteBuildAndRun(
             output
         );
 
+        if (toolchain.useReadelf) {
+            output.appendLine('\nREADELF:');
+            const readelfCommand = [
+                `cd ${shellQuote(workDir)} &&`,
+                shellQuote(applyPrefix(prefix, 'readelf')),
+                ...toolchain.readelfFlags.map(shellQuote),
+                shellQuote(binaryName)
+            ].join(' ');
+
+            const readelfResult = await execRemote(session.client, readelfCommand, output);
+
+            if (readelfResult.code !== 0) {
+                output.appendLine('\nWarning: remote readelf failed; the ELF report is not available.');
+            }
+        }
+
         output.appendLine(`\nREMOTE BUILD OK -> ${path.posix.join(workDir, binaryName)}`);
 
         if (!execute) {

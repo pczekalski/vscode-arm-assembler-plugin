@@ -14,6 +14,9 @@ export interface ToolchainSettings {
     linker: string;
     gcc: string;
     size: string;
+    useReadelf: boolean;
+    readelf: string;
+    readelfFlags: string[];
     linkWith: LinkWith;
     useNoStartFiles: boolean;
     entrySymbol: string;
@@ -131,6 +134,9 @@ export function getToolchain(): ToolchainSettings {
         linker: applyPrefix(prefix, config.get<string>('linkerPath', 'ld')),
         gcc: applyPrefix(prefix, config.get<string>('gccPath', 'gcc')),
         size: applyPrefix(prefix, config.get<string>('sizePath', 'size')),
+        useReadelf: config.get<boolean>('useReadelf', false),
+        readelf: applyPrefix(prefix, config.get<string>('readelfPath', 'readelf')),
+        readelfFlags: config.get<string[]>('readelfFlags', ['-W', '-h', '-s', '-S']),
         linkWith: config.get<LinkWith>('linkWith', 'gcc'),
         useNoStartFiles: config.get<boolean>('useNoStartFiles', true),
         entrySymbol: config.get<string>('entrySymbol', '_start').trim(),

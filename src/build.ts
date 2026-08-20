@@ -225,6 +225,20 @@ export async function buildCurrentFile(
         output.appendLine(`\nWarning: ${toolchain.size} failed; section sizes are not available.`);
     }
 
+    if (toolchain.useReadelf) {
+        output.appendLine('\nREADELF:');
+        const readelfResult = await runCommand(
+            toolchain.readelf,
+            [...toolchain.readelfFlags, p.binary],
+            p.baseDir,
+            output
+        ).catch(() => undefined);
+
+        if (!readelfResult || readelfResult.code !== 0) {
+            output.appendLine(`\nWarning: ${toolchain.readelf} failed; the ELF report is not available.`);
+        }
+    }
+
     output.appendLine(`\nBUILD OK -> ${p.binary}`);
     vscode.window.showInformationMessage('ARM build OK');
     return p;

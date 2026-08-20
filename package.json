@@ -162,6 +162,35 @@
             "markdownDescription": "Executable used to report section sizes of the linked binary (`size`).",
             "order": 6
           },
+          "arm-asm-builder.useReadelf": {
+            "type": "boolean",
+            "default": false,
+            "title": "Run readelf After Size",
+            "markdownDescription": "If enabled, `readelf` is run on the linked binary right after `size`, and its report is written to the build output. Useful for inspecting the ELF headers, sections and symbols of the program you just assembled.",
+            "order": 7
+          },
+          "arm-asm-builder.readelfPath": {
+            "type": "string",
+            "default": "readelf",
+            "title": "readelf Tool",
+            "markdownDescription": "Executable used to inspect the linked binary, combined with **Toolchain Prefix**. Only used when **Run readelf After Size** is enabled. Use an absolute path if the toolchain is not on your system `PATH` (an absolute path is used as-is, without the prefix).",
+            "order": 8
+          },
+          "arm-asm-builder.readelfFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "-W",
+              "-h",
+              "-s",
+              "-S"
+            ],
+            "title": "readelf Flags",
+            "markdownDescription": "Flags passed to `readelf` before the binary name. The default `-W -h -s -S` prints the ELF header, the symbol table and the section headers in wide format.",
+            "order": 9
+          },
           "arm-asm-builder.linkWith": {
             "type": "string",
             "default": "gcc",
@@ -175,21 +204,21 @@
             ],
             "title": "Link With",
             "markdownDescription": "Tool used for the link stage.",
-            "order": 7
+            "order": 10
           },
           "arm-asm-builder.useNoStartFiles": {
             "type": "boolean",
             "default": true,
             "title": "Use No Start Files",
             "markdownDescription": "If enabled, links with `-nostartfiles`. Recommended for pure assembly programs that provide their own entry point (`_start`) instead of `main`. Applies when **Link With** is `gcc`.",
-            "order": 8
+            "order": 11
           },
           "arm-asm-builder.entrySymbol": {
             "type": "string",
             "default": "_start",
             "title": "Entry Symbol",
             "markdownDescription": "Entry symbol passed to the linker via `-e`. Leave empty to use the linker default.",
-            "order": 9
+            "order": 12
           },
           "arm-asm-builder.assemblerFlags": {
             "type": "array",
@@ -201,7 +230,7 @@
             ],
             "title": "Extra Assembler Flags",
             "markdownDescription": "Additional flags passed to the assembler, for example `-g` for debug information or `-mcpu=cortex-a76`.",
-            "order": 10
+            "order": 13
           },
           "arm-asm-builder.linkerFlags": {
             "type": "array",
@@ -211,14 +240,14 @@
             "default": [],
             "title": "Extra Linker Flags",
             "markdownDescription": "Additional flags passed to the link stage, for example `-static` or `-lm`.",
-            "order": 11
+            "order": 14
           },
           "arm-asm-builder.outputDirectory": {
             "type": "string",
             "default": "build",
             "title": "Output Directory",
             "markdownDescription": "Directory, relative to the workspace or source file, where generated build artifacts such as `.o` files and executables are written.",
-            "order": 12
+            "order": 15
           }
         }
       },

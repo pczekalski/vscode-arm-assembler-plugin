@@ -38,7 +38,7 @@ It provides a minimal, fast workflow similar to PlatformIO, but focused on **pur
 
 - 🔨 Assemble `.s` → `.o`
 - 🔗 Link `.o` → executable (`ld` or the `gcc` driver, with optional `-nostartfiles`)
-- 📊 Display section sizes (`size`)
+- 📊 Display section sizes (`size`), optionally followed by an ELF report (`readelf`)
 - ▶ Run the program locally — natively on ARM hosts, or through QEMU user-mode emulation on x86
 - 🌐 Upload, build and run on a remote ARM device over SSH, with the terminal output streamed back
 - 🔐 Password kept in the encrypted VS Code secret storage, with SSH host key confirmation
@@ -65,6 +65,7 @@ This extension depends on the GNU binutils/gcc toolchain for ARM. The following 
 - `ld` – linker (used when **Link With** is `ld`)
 - `gcc` – compiler driver used for linking against the C library (used when **Link With** is `gcc`)
 - `size` – displays section sizes
+- `readelf` – optional, displays the ELF headers, sections and symbols after `size`
 - `qemu-aarch64` / `qemu-arm` – runs ARM binaries on a non-ARM host (local run only)
 
 On an **ARM host** (Raspberry Pi, ARM64 Linux workstation) these are the plain, unprefixed tools.
@@ -171,7 +172,8 @@ If the ARM toolchain is not available in your system `PATH`, you can configure e
   "arm-asm-builder.assemblerPath": "/path/to/aarch64-linux-gnu-as",
   "arm-asm-builder.linkerPath": "/path/to/aarch64-linux-gnu-ld",
   "arm-asm-builder.gccPath": "/path/to/aarch64-linux-gnu-gcc",
-  "arm-asm-builder.sizePath": "/path/to/aarch64-linux-gnu-size"
+  "arm-asm-builder.sizePath": "/path/to/aarch64-linux-gnu-size",
+  "arm-asm-builder.readelfPath": "/path/to/aarch64-linux-gnu-readelf"
 }
 ```
 
@@ -202,7 +204,7 @@ Target architecture, `aarch64` (Raspberry Pi 5 with a 64-bit OS) or `arm32`. Dri
 ```json
 "arm-asm-builder.toolchainPrefix": ""
 ```
-Prefix prepended to `as`, `ld`, `gcc` and `size`, for example `aarch64-linux-gnu-`.
+Prefix prepended to `as`, `ld`, `gcc`, `size` and `readelf`, for example `aarch64-linux-gnu-`.
 Empty means automatic: no prefix on an ARM host, the matching cross prefix elsewhere.
 
 ```json
@@ -210,8 +212,18 @@ Empty means automatic: no prefix on an ARM host, the matching cross prefix elsew
 "arm-asm-builder.linkerPath": "ld"
 "arm-asm-builder.gccPath": "gcc"
 "arm-asm-builder.sizePath": "size"
+"arm-asm-builder.readelfPath": "readelf"
 ```
 Tool names or absolute paths. An absolute path is used as it is, without the prefix.
+
+```json
+"arm-asm-builder.useReadelf": false
+"arm-asm-builder.readelfFlags": ["-W", "-h", "-s", "-S"]
+```
+Runs `readelf` on the linked binary right after `size`, locally and on the remote device, and writes its
+report to the output channel. Disabled by default. The default flags print the ELF header (`-h`), the
+symbol table (`-s`) and the section headers (`-S`) in wide format (`-W`). A missing or failing `readelf`
+is only reported as a warning and never fails the build.
 
 ---
 
