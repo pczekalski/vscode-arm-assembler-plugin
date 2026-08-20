@@ -491,21 +491,8 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
         return cancelled();
     }
 
-    const workingDirectory = await vscode.window.showInputBox({
-        title: 'ARM Remote Device (4/5)',
-        prompt: 'Directory on the device for uploaded sources and binaries',
-        value: remote.workingDirectory,
-        ignoreFocusOut: true,
-        validateInput: (value) =>
-            (value.trim().length === 0 ? 'The working directory must not be empty.' : undefined)
-    });
-
-    if (workingDirectory === undefined) {
-        return cancelled();
-    }
-
     const password = await vscode.window.showInputBox({
-        title: 'ARM Remote Device (5/5)',
+        title: 'ARM Remote Device (4/5)',
         prompt: laboratoryMode
             ? `Password for ${username.trim()}@${host.trim()} (kept for this VS Code session only)`
             : `Password for ${username.trim()}@${host.trim()} (stored in the encrypted secret storage)`,
@@ -516,6 +503,19 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
     });
 
     if (password === undefined) {
+        return cancelled();
+    }
+
+    const workingDirectory = await vscode.window.showInputBox({
+        title: 'ARM Remote Device (5/5)',
+        prompt: 'Directory on the device for uploaded sources and binaries',
+        value: remote.workingDirectory,
+        ignoreFocusOut: true,
+        validateInput: (value) =>
+            (value.trim().length === 0 ? 'The working directory must not be empty.' : undefined)
+    });
+
+    if (workingDirectory === undefined) {
         return cancelled();
     }
 
@@ -850,6 +850,154 @@ export async function testRemoteConnection(
         const message = err instanceof Error ? err.message : String(err);
         output.appendLine(`\nERROR: ${message}`);
         vscode.window.showErrorMessage(`Remote connection test failed: ${message}`);
+    } finally {
+        closeSession(session);
+    }
+}
+
+/**
+ * Directories that must never be emptied, whatever the working directory is set to. A typo in
+ * the setting would otherwise turn the clean-up into a very effective way of ruining a device.
+ */
+const PROTECTED_REMOTE_PATHS = new Set([
+    '/', '/bin', '/boot', '/dev', '/etc', '/home', '/lib', '/lib32', '/lib64', '/media',
+    '/mnt', '/opt', '/proc', '/root', '/run', '/sbin', '/srv', '/sys', '/tmp', '/usr', '/var'
+]);
+
+function isProtectedRemotePath(directory: string, home: string): boolean {
+    const normalised = directory.length > 1 && directory.endsWith('/')
+        ? directory.replace(/\/+$/, '')
+        : directory;
+
+    // The home directory holds far more than build output, so emptying it is never intended.
+    return PROTECTED_REMOTE_PATHS.has(normalised) || normalised === home.replace(/\/+$/, '');
+}
+
+/**
+ * Empties the working directory on the device, keeping the directory itself.
+ *
+ * Everything in there was put there by this extension, but the setting is free text, so the
+ * absolute path and the number of entries are shown for confirmation before anything is
+ * deleted, and a handful of system directories are refused outright.
+ */
+export async function cleanRemoteFolder(
+    context: vscode.ExtensionContext,
+    output: vscode.OutputChannel
+): Promise<void> {
+    output.clear();
+    output.show(true);
+
+    let session: RemoteSession | undefined;
+
+    try {
+        session = await openSession(context, output);
+
+        if (!session) {
+            return;
+        }
+
+        const workDir = session.workDir;
+        const device = `${session.settings.username}@${session.settings.host}`;
+
+        const home = (await execRemote(session.client, 'printf %s "$HOME"', output, { echo: false }))
+            .stdout.trim();
+
+        if (isProtectedRemotePath(workDir, home)) {
+            output.appendLine(`\nREFUSED: ${workDir} is a system or home directory and is never emptied.`);
+            vscode.window.showErrorMessage(
+                `Refusing to empty ${workDir} on ${device}. Point the remote working directory at a ` +
+                'dedicated folder before cleaning it.'
+            );
+            return;
+        }
+
+        // `test -d` keeps a missing directory from being reported as an empty one.
+        const exists = await execRemote(
+            session.client,
+            `test -d ${shellQuote(workDir)}`,
+            output,
+            { echo: false }
+        );
+
+        if (exists.code !== 0) {
+            output.appendLine(`\nNothing to clean: ${workDir} does not exist on ${device}.`);
+            vscode.window.showInformationMessage(`Nothing to clean: ${workDir} does not exist.`);
+            return;
+        }
+
+        const listing = await execRemote(
+            session.client,
+            `ls -A ${shellQuote(workDir)}`,
+            output,
+            { echo: false }
+        );
+
+        const entries = listing.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+        if (entries.length === 0) {
+            output.appendLine(`\nNothing to clean: ${workDir} is already empty.`);
+            vscode.window.showInformationMessage(`Nothing to clean: ${workDir} is already empty.`);
+            return;
+        }
+
+        const preview = entries.slice(0, 10).join(', ');
+        const more = entries.length > 10 ? `, and ${entries.length - 10} more` : '';
+
+        const choice = await vscode.window.showWarningMessage(
+            `Delete all ${entries.length} item(s) in ${workDir} on ${device}?`,
+            {
+                modal: true,
+                detail: `${preview}${more}\n\nThe folder itself is kept. This cannot be undone.`
+            },
+            'Delete'
+        );
+
+        if (choice !== 'Delete') {
+            output.appendLine('\nClean-up cancelled. Nothing was deleted.');
+            return;
+        }
+
+        output.appendLine(`Cleaning ${workDir} on ${device} ...`);
+
+        // -mindepth 1 keeps the directory itself; the exec form copes with hidden files,
+        // sub-directories and names that a glob would mangle.
+        const removal = await execRemote(
+            session.client,
+            `find ${shellQuote(workDir)} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +`,
+            output
+        );
+
+        if (removal.code !== 0) {
+            output.appendLine('\nCLEAN-UP FAILED');
+            vscode.window.showErrorMessage(`Could not empty ${workDir} on ${device}.`);
+            return;
+        }
+
+        const remaining = await execRemote(
+            session.client,
+            `ls -A ${shellQuote(workDir)}`,
+            output,
+            { echo: false }
+        );
+
+        const left = remaining.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+        if (left.length > 0) {
+            output.appendLine(`\nCLEAN-UP INCOMPLETE: ${left.length} item(s) left in ${workDir}.`);
+            vscode.window.showWarningMessage(
+                `${left.length} item(s) could not be removed from ${workDir}; check the permissions on the device.`
+            );
+            return;
+        }
+
+        output.appendLine(`\nCLEAN-UP OK: removed ${entries.length} item(s) from ${workDir}.`);
+        vscode.window.showInformationMessage(
+            `Removed ${entries.length} item(s) from ${workDir} on ${device}.`
+        );
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        output.appendLine(`\nERROR: ${message}`);
+        vscode.window.showErrorMessage(`Cleaning the remote folder failed: ${message}`);
     } finally {
         closeSession(session);
     }

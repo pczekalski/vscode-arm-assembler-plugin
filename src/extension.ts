@@ -4,6 +4,7 @@ import { CONFIG_SECTION, isLaboratoryMode } from './config';
 import { buildCurrentFile, isArmSource, runLocally } from './build';
 import { hasRunningProcess, stopAllProcesses } from './process';
 import {
+    cleanRemoteFolder,
     clearRemotePassword,
     configureRemote,
     enterLaboratorySession,
@@ -88,6 +89,11 @@ export function activate(context: vscode.ExtensionContext): void {
             'arm-asm-builder.testRemoteConnection',
             () => testRemoteConnection(context, output),
             'Remote connection test failed'
+        ),
+        register(
+            'arm-asm-builder.cleanRemoteFolder',
+            () => cleanRemoteFolder(context, output),
+            'Cleaning the remote folder failed'
         ),
         register(
             'arm-asm-builder.stopRun',

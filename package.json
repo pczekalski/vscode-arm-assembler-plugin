@@ -103,6 +103,11 @@
         "category": "ARM Assembler"
       },
       {
+        "command": "arm-asm-builder.cleanRemoteFolder",
+        "title": "ARM: Clean Remote Working Directory",
+        "category": "ARM Assembler"
+      },
+      {
         "command": "arm-asm-builder.openSettings",
         "title": "ARM: Open Settings",
         "category": "ARM Assembler"
@@ -448,6 +453,9 @@
         },
         {
           "command": "arm-asm-builder.testRemoteConnection"
+        },
+        {
+          "command": "arm-asm-builder.cleanRemoteFolder"
         },
         {
           "command": "arm-asm-builder.openSettings"

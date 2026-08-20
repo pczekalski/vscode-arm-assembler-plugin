@@ -41,6 +41,7 @@ It provides a minimal, fast workflow similar to PlatformIO, but focused on **pur
 - 📊 Display section sizes (`size`), optionally followed by an ELF report (`readelf`)
 - ▶ Run the program locally — natively on ARM hosts, or through QEMU user-mode emulation on x86
 - 🌐 Upload, build and run on a remote ARM device over SSH, with the terminal output streamed back
+- 🧹 Clean the remote working directory in one step, with a confirmation that names the path
 - 🔐 Password kept in the encrypted VS Code secret storage, with SSH host key confirmation
 - 🎓 Laboratory mode for shared computers: the device lives in the VS Code session only
 - 🎨 ARM assembly syntax highlighting (AArch64 and AArch32)
@@ -146,8 +147,8 @@ Configure the connection with:
 ARM: Configure Remote Device
 ```
 
-which asks for **IP address / host name**, **port**, **user name**, **working directory** and
-**password**, then opens the settings page so the saved values are visible straight away.
+which asks, in this order, for **IP address / host name**, **port**, **user name**, **password** and
+**working directory**, then opens the settings page so the saved values are visible straight away.
 
 The wizard is **all or nothing**: nothing is written until the last answer is in. Pressing
 `Escape` at any prompt — including the password — leaves the previously configured device
@@ -180,6 +181,24 @@ Should the two devices need different passwords, run **ARM: Set Remote Password*
 Typing a password into `arm-asm-builder.remote.password` is also noticed: the extension offers to
 move it into the encrypted secret storage and clear the clear-text setting. Choosing **Keep in
 Settings** silences the offer for good.
+
+---
+
+#### Cleaning up the device
+
+Builds accumulate on the device: every uploaded source, object file and binary stays in the remote
+working directory unless **Keep Files on Device** is off. To wipe them in one step, run:
+
+```
+ARM: Clean Remote Working Directory
+```
+
+It connects, resolves the working directory (expanding `~`), and asks for confirmation showing the
+absolute path, the device and how many entries would go — nothing is deleted until you confirm.
+Hidden files and sub-directories are removed as well; the folder itself is kept.
+
+Because the working directory is free text, `/`, the user's home directory and the usual system
+directories (`/etc`, `/usr`, `/var`, `/tmp` and friends) are refused outright, before any prompt.
 
 ---
 
@@ -444,6 +463,7 @@ Handshake timeout in milliseconds, and host key confirmation on first connection
 | `ARM: Set Remote Password` | Store the SSH password in the encrypted secret storage |
 | `ARM: Clear Stored Remote Password` | Remove the stored password, and optionally the clear-text one in the settings |
 | `ARM: Test Remote Connection` | Log in, report `uname -a` and the assembler version |
+| `ARM: Clean Remote Working Directory` | Delete everything in the remote working directory, after confirmation |
 | `ARM: Open Settings` | Open the settings of this extension |
 
 ## Example

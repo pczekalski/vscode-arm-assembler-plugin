@@ -50,6 +50,7 @@ export class ArmSidebarProvider implements vscode.WebviewViewProvider {
                 configureRemote: 'arm-asm-builder.configureRemote',
                 setPassword: 'arm-asm-builder.setRemotePassword',
                 testConnection: 'arm-asm-builder.testRemoteConnection',
+                cleanRemoteFolder: 'arm-asm-builder.cleanRemoteFolder',
                 stop: 'arm-asm-builder.stopRun',
                 openSettings: 'arm-asm-builder.openSettings'
             };

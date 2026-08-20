@@ -17,6 +17,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Editing the remote host, port or user name in the settings moves the stored password to the new device, and a password typed into the settings can be moved into the secret storage on the spot
 - The device configuration wizard applies address, port, user name and password as one unit: nothing
   is written until every answer is given, so cancelling leaves the previous device untouched
+- **ARM: Clean Remote Working Directory** empties the remote build folder after a confirmation that
+  names the absolute path, the device and the number of entries; system and home directories are refused
 - Laboratory mode (`arm-asm-builder.remote.laboratoryMode`): on shared computers the whole remote device — address, port, user name and password — is kept in the VS Code session only and never stored, so no student inherits the previous configuration
 - Sidebar and status bar integration
 - Values entered in the remote configuration prompts are written to the User settings scope, and any
