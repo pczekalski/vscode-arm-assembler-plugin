@@ -39,7 +39,7 @@ It provides a minimal, fast workflow similar to PlatformIO, but focused on **pur
 - 🔨 Assemble `.s` → `.o`
 - 🔗 Link `.o` → executable (`ld` or the `gcc` driver, with optional `-nostartfiles`)
 - 📊 Display section sizes (`size`), optionally followed by an ELF report (`readelf`)
-- ▶ Run the program locally — natively on ARM hosts, or through QEMU user-mode emulation on x86
+- ▶ Run the program locally on Linux — natively on ARM hosts, or through QEMU user-mode emulation on x86
 - 🌐 Upload, build and run on a remote ARM device over SSH, with the terminal output streamed back
 - 🧹 Clean the remote working directory in one step, with a confirmation that names the path
 - 🔐 Password kept in the encrypted VS Code secret storage, with SSH host key confirmation
@@ -54,26 +54,50 @@ It provides a minimal, fast workflow similar to PlatformIO, but focused on **pur
 
 ## Requirements
 
-To use **ARM Assembler Toolbox**, ensure the following tools and environment are available.
-Only the local build needs a toolchain on your machine — for the remote workflow the toolchain lives on the ARM device.
+What you need depends on where you build and run. Editing and syntax highlighting need nothing at
+all, and the remote workflow needs no ARM toolchain on your own computer — it uses the one already
+installed on the device.
+
+---
+
+### 🖥️ What works on which platform
+
+| Your computer | Edit & highlight | Build locally | Run locally | Build & run on the device |
+|---------------|:----------------:|---------------|-------------|---------------------------|
+| Linux on ARM (Raspberry Pi, ARM64 workstation) | ✓ | ✓ native toolchain | ✓ runs natively | ✓ |
+| Linux on x86_64 | ✓ | ✓ cross toolchain | ✓ QEMU user-mode | ✓ |
+| macOS (Intel or Apple Silicon) | ✓ | ✓ GNU cross toolchain | ✗ — use the device | ✓ |
+| Windows | ✓ | ✓ Arm GNU Toolchain | ✗ — use WSL or the device | ✓ |
+
+> **Running a program locally is a Linux-only feature.** It uses QEMU *user-mode* emulation
+> (`qemu-aarch64` / `qemu-arm`), which only exists on Linux hosts: the QEMU builds for macOS and
+> Windows provide full-machine emulation (`qemu-system-…`) instead and cannot execute a Linux ARM
+> binary directly. On macOS and Windows, build locally if you like and **run on the remote device** —
+> or, on Windows, install the toolchain inside WSL and use VS Code's WSL window.
 
 ---
 
 ### 🧰 ARM Toolchain
 
-This extension depends on the GNU binutils/gcc toolchain for ARM. The following tools must be installed and accessible from your system `PATH`:
+Needed for **local** builds only. The tools must be installed and reachable from your system `PATH`
+(or pointed at with absolute paths in the settings):
 
-- `as` – assembler
-- `ld` – linker (used when **Link With** is `ld`)
-- `gcc` – compiler driver used for linking against the C library (used when **Link With** is `gcc`)
-- `size` – displays section sizes
-- `readelf` – optional, displays the ELF headers, sections and symbols after `size`
-- `qemu-aarch64` / `qemu-arm` – runs ARM binaries on a non-ARM host (local run only)
+| Tool | Used for | Required |
+|------|----------|----------|
+| `as` | assembling `.s` files | yes |
+| `gcc` | linking, and assembling `.S` files through the C preprocessor | when **Link With** is `gcc`, or for `.S` sources |
+| `ld` | linking | when **Link With** is `ld` |
+| `size` | section sizes after a successful build | yes |
+| `readelf` | ELF headers, sections and symbols | only when **Run readelf After Size** is on |
+| `qemu-aarch64` / `qemu-arm` | running the binary on a non-ARM host | Linux only, for local runs |
 
-On an **ARM host** (Raspberry Pi, ARM64 Linux workstation) these are the plain, unprefixed tools.
-On an **x86 host** they come from a cross toolchain and carry a prefix such as `aarch64-linux-gnu-`, which the extension adds automatically.
+`as`, `ld`, `size` and `readelf` all come from **binutils**, so one package covers them.
 
-#### Installation (Ubuntu / Debian, x86 host, 64-bit ARM target)
+On an **ARM Linux host** these are the plain, unprefixed tools. Everywhere else they come from a
+cross toolchain and carry a prefix such as `aarch64-linux-gnu-`, which the extension adds
+automatically — see **Toolchain Prefix** if yours is named differently.
+
+#### Linux (Ubuntu / Debian) on x86_64, 64-bit ARM target
 
 ```bash
 sudo apt update
@@ -86,42 +110,64 @@ For a 32-bit ARM target:
 sudo apt install binutils-arm-linux-gnueabihf gcc-arm-linux-gnueabihf qemu-user
 ```
 
-#### Installation (Ubuntu / Debian, running on the ARM device itself)
+#### Linux (Ubuntu / Debian) running on the ARM device itself
 
 ```bash
 sudo apt update
 sudo apt install binutils gcc
 ```
 
-#### Installation (Arch Linux)
+No emulator and no toolchain prefix are needed here: the machine already speaks ARM.
+
+#### Linux (Arch)
 
 ```bash
-sudo pacman -S aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc qemu-user
+sudo pacman -S aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc qemu-emulators-full
 ```
 
-#### Installation (macOS with Homebrew)
+`qemu-emulators-full` is the package that carries the user-mode emulators; `qemu-full` alone does not.
+
+#### macOS (Homebrew)
 
 ```bash
 brew tap messense/macos-cross-toolchains
 brew install aarch64-unknown-linux-gnu
-brew install qemu
 ```
 
-Then set the prefix in settings, for example:
+Then point the extension at that toolchain:
 
 ```json
 "arm-asm-builder.toolchainPrefix": "aarch64-unknown-linux-gnu-"
 ```
 
-> The assembler shipped with Xcode produces Mach-O objects and does not accept the ELF-oriented
-> directives used here, so a GNU cross toolchain is required on macOS. Alternatively, skip the local
-> toolchain entirely and use the remote workflow.
+> Two things to know on macOS. The assembler shipped with Xcode produces Mach-O objects and rejects
+> the ELF-oriented directives used here, so a GNU cross toolchain is required even on Apple Silicon.
+> And there is no QEMU user-mode on macOS, so a locally built binary cannot be started locally —
+> run it on the remote device instead. Installing the toolchain is therefore optional: with the
+> remote workflow alone, macOS needs nothing installed at all.
 
-#### Installation (Windows)
+#### Windows
 
-- Install the **Arm GNU Toolchain** (`aarch64-none-linux-gnu`) or use **MSYS2**
-- Ensure all required tools are added to your system `PATH`
-- Local *running* of ARM binaries needs QEMU or WSL; the remote workflow works without either
+1. Install the **Arm GNU Toolchain**, `AArch64 GNU/Linux target` (`aarch64-none-linux-gnu`), from
+   [developer.arm.com](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), and let the
+   installer add it to your `PATH`.
+2. Tell the extension about its prefix, which differs from the Linux default:
+
+```json
+"arm-asm-builder.toolchainPrefix": "aarch64-none-linux-gnu-"
+```
+
+Local *running* is not available on Windows. Either use the remote device, or install the toolchain
+inside **WSL** (`sudo apt install binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu qemu-user`) and
+open the project in a VS Code WSL window, where the extension behaves exactly as it does on Linux.
+
+---
+
+### 🔐 SSH client
+
+**Nothing to install, on any platform.** The extension speaks SSH and SFTP itself through the bundled
+`ssh2` library, so OpenSSH, PuTTY, Pageant or an `ssh-agent` are neither needed nor used. Passwords are
+the only supported authentication method.
 
 ---
 
@@ -137,8 +183,22 @@ Then set the prefix in settings, for example:
 To build and run on a device such as a Raspberry Pi 5, you will need:
 
 - The device reachable over the network, with the SSH server enabled (`sudo raspi-config` → *Interface Options* → *SSH*)
-- A user account with a password
-- `binutils` and `gcc` installed on the device
+- A user account with a password — password authentication must be allowed by the SSH server
+  (`PasswordAuthentication yes`, the default on Raspberry Pi OS); SSH keys are not supported
+- The **SFTP subsystem** enabled in `sshd_config`, which is the default. Sources are uploaded over
+  SFTP, so a server with `Subsystem sftp` commented out will connect but fail to upload
+- `binutils` and `gcc` installed on the device:
+
+  ```bash
+  sudo apt update
+  sudo apt install binutils gcc
+  ```
+
+  `binutils` covers `as`, `ld`, `size` and `readelf`; `gcc` is needed for linking against the C
+  library and for `.S` sources. The device builds its own architecture, so no cross toolchain and no
+  **Remote Toolchain Prefix** are involved
+- A POSIX shell with the usual core utilities (`mkdir`, `ls`, `find`, `rm`, `chmod`, `printf`,
+  `uname`), which every Raspberry Pi OS and Debian install has
 - No graphical environment is required — only the command line output is used
 
 Configure the connection with:
@@ -558,12 +618,24 @@ standard error appears in the **ARM ASM Builder** output channel.
 - Programs that read from standard input need `arm-asm-builder.run.useIntegratedTerminal` for local runs; remote runs are non-interactive.
 - Only the active file is assembled. Multi-file projects need a build system of their own; extra files can still be shipped to the device with `arm-asm-builder.remote.uploadExtraFiles`.
 - The `.s` extension is shared with other assembler extensions. If both this and an AVR extension are installed, pick the language mode per file in the status bar.
+- Running a program locally works on Linux only, natively on ARM or through QEMU user-mode emulation. On macOS and Windows, build locally if you wish but run on the remote device — or use WSL on Windows.
+- The remote connection authenticates with a password only; SSH keys and agents are not supported.
 
 ## Release Notes
 
 ### 0.1.0
 
-Initial release: local build and run with QEMU support, remote build and run over SSH, ARM syntax highlighting, sidebar and status bar integration.
+Initial release:
+
+- Assembling and linking `.s`, `.S` and `.asm` sources with the GNU toolchain, `ld` or the `gcc` driver
+- Section sizes after every build, with an optional `readelf` report
+- Local execution: native on ARM Linux, QEMU user-mode on x86 Linux
+- Upload, build and run on a remote ARM device over SSH, with the output streamed back
+- Clean-up of the remote working directory, with confirmation
+- Device configuration applied all at once: address, port, user name and password are never half-applied
+- Laboratory mode for shared computers, keeping the device in the VS Code session only
+- Password kept in the encrypted secret storage, SSH host key confirmed on first use
+- ARM syntax highlighting for AArch64 and AArch32, clickable diagnostics, sidebar and status bar
 
 ## About the project:
 
