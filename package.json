@@ -1,0 +1,449 @@
+{
+  "name": "arm-assembler",
+  "displayName": "ARM Assembler Toolbox",
+  "description": "ARM plugin for Assembler code editing, local compilation and execution, and remote build/run over SSH on ARM devices such as Raspberry Pi 5",
+  "version": "0.1.0",
+  "publisher": "pczekalski-dev",
+  "icon": "images/ARM_VSCode.png",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pczekalski/vscode-arm-assembler-plugin.git"
+  },
+  "homepage": "https://github.com/pczekalski",
+  "bugs": {
+    "url": "https://github.com/pczekalski/vscode-arm-assembler-plugin/issues"
+  },
+  "keywords": [
+    "arm",
+    "aarch64",
+    "assembler",
+    "raspberry-pi",
+    "ssh",
+    "embedded"
+  ],
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "arm",
+        "aliases": [
+          "ARM Assembler",
+          "arm"
+        ],
+        "extensions": [
+          ".s",
+          ".S",
+          ".asm"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "arm",
+        "scopeName": "source.arm",
+        "path": "./syntaxes/arm.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "arm-asm-builder.buildCurrentFile",
+        "title": "ARM: Build Current .s File",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.runLocal",
+        "title": "ARM: Build and Run Locally",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.remoteBuild",
+        "title": "ARM: Upload and Build on Remote Device",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.remoteRun",
+        "title": "ARM: Upload, Build and Run on Remote Device",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.stopRun",
+        "title": "ARM: Stop Running Program",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.configureRemote",
+        "title": "ARM: Configure Remote Device",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.setRemotePassword",
+        "title": "ARM: Set Remote Password",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.clearRemotePassword",
+        "title": "ARM: Clear Stored Remote Password",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.testRemoteConnection",
+        "title": "ARM: Test Remote Connection",
+        "category": "ARM Assembler"
+      },
+      {
+        "command": "arm-asm-builder.openSettings",
+        "title": "ARM: Open Settings",
+        "category": "ARM Assembler"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Compiler and Linker",
+        "properties": {
+          "arm-asm-builder.architecture": {
+            "type": "string",
+            "default": "aarch64",
+            "enum": [
+              "aarch64",
+              "arm32"
+            ],
+            "enumDescriptions": [
+              "64-bit ARM (A64). Raspberry Pi 3/4/5 running a 64-bit OS, Apple Silicon, ARM64 servers.",
+              "32-bit ARM (A32/Thumb). Raspberry Pi running a 32-bit OS, Cortex-A/R/M class targets."
+            ],
+            "title": "Target Architecture",
+            "markdownDescription": "Target ARM architecture. Controls the default toolchain prefix and the default user-mode emulator (`qemu-aarch64` or `qemu-arm`) used when building or running on a non-ARM host.",
+            "order": 1
+          },
+          "arm-asm-builder.toolchainPrefix": {
+            "type": "string",
+            "default": "",
+            "title": "Toolchain Prefix",
+            "markdownDescription": "Prefix prepended to `as`, `ld`, `gcc` and `size`, for example `aarch64-linux-gnu-` or `arm-linux-gnueabihf-`.\n\nLeave empty for automatic selection: no prefix when the host itself is an ARM machine, otherwise the cross prefix matching **Target Architecture**.",
+            "order": 2
+          },
+          "arm-asm-builder.assemblerPath": {
+            "type": "string",
+            "default": "as",
+            "title": "Assembler",
+            "markdownDescription": "Assembler executable, combined with **Toolchain Prefix**. Use an absolute path if the toolchain is not on your system `PATH` (an absolute path is used as-is, without the prefix).",
+            "order": 3
+          },
+          "arm-asm-builder.linkerPath": {
+            "type": "string",
+            "default": "ld",
+            "title": "Linker",
+            "markdownDescription": "Linker executable used when **Link With** is set to `ld`.",
+            "order": 4
+          },
+          "arm-asm-builder.gccPath": {
+            "type": "string",
+            "default": "gcc",
+            "title": "GCC Driver",
+            "markdownDescription": "GCC driver used when **Link With** is set to `gcc`. Linking through `gcc` makes the C library available, so assembly code can call `printf`, `puts` and friends.",
+            "order": 5
+          },
+          "arm-asm-builder.sizePath": {
+            "type": "string",
+            "default": "size",
+            "title": "Size Tool",
+            "markdownDescription": "Executable used to report section sizes of the linked binary (`size`).",
+            "order": 6
+          },
+          "arm-asm-builder.linkWith": {
+            "type": "string",
+            "default": "gcc",
+            "enum": [
+              "gcc",
+              "ld"
+            ],
+            "enumDescriptions": [
+              "Link through the GCC driver. The C library is available to your assembly code.",
+              "Link with ld only. Produces a freestanding binary that must use raw syscalls."
+            ],
+            "title": "Link With",
+            "markdownDescription": "Tool used for the link stage.",
+            "order": 7
+          },
+          "arm-asm-builder.useNoStartFiles": {
+            "type": "boolean",
+            "default": true,
+            "title": "Use No Start Files",
+            "markdownDescription": "If enabled, links with `-nostartfiles`. Recommended for pure assembly programs that provide their own entry point (`_start`) instead of `main`. Applies when **Link With** is `gcc`.",
+            "order": 8
+          },
+          "arm-asm-builder.entrySymbol": {
+            "type": "string",
+            "default": "_start",
+            "title": "Entry Symbol",
+            "markdownDescription": "Entry symbol passed to the linker via `-e`. Leave empty to use the linker default.",
+            "order": 9
+          },
+          "arm-asm-builder.assemblerFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "-g"
+            ],
+            "title": "Extra Assembler Flags",
+            "markdownDescription": "Additional flags passed to the assembler, for example `-g` for debug information or `-mcpu=cortex-a76`.",
+            "order": 10
+          },
+          "arm-asm-builder.linkerFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "title": "Extra Linker Flags",
+            "markdownDescription": "Additional flags passed to the link stage, for example `-static` or `-lm`.",
+            "order": 11
+          },
+          "arm-asm-builder.outputDirectory": {
+            "type": "string",
+            "default": "build",
+            "title": "Output Directory",
+            "markdownDescription": "Directory, relative to the workspace or source file, where generated build artifacts such as `.o` files and executables are written.",
+            "order": 12
+          }
+        }
+      },
+      {
+        "title": "Local Run",
+        "properties": {
+          "arm-asm-builder.run.useEmulator": {
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "enumDescriptions": [
+              "Run natively when the host is an ARM machine, otherwise run through QEMU user-mode emulation.",
+              "Always run through the QEMU user-mode emulator.",
+              "Always execute the binary directly."
+            ],
+            "title": "Use Emulator",
+            "markdownDescription": "How locally built ARM binaries are executed on this machine.",
+            "order": 20
+          },
+          "arm-asm-builder.run.emulatorPath": {
+            "type": "string",
+            "default": "",
+            "title": "Emulator Path",
+            "markdownDescription": "Path or command name of the QEMU user-mode emulator. Leave empty to use `qemu-aarch64` or `qemu-arm` according to **Target Architecture**.",
+            "order": 21
+          },
+          "arm-asm-builder.run.emulatorLibraryPath": {
+            "type": "string",
+            "default": "",
+            "title": "Emulator Library Path",
+            "markdownDescription": "Sysroot passed to QEMU via `-L`, needed for dynamically linked binaries, for example `/usr/aarch64-linux-gnu`. Leave empty to skip.",
+            "order": 22
+          },
+          "arm-asm-builder.run.arguments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "title": "Program Arguments",
+            "markdownDescription": "Command line arguments passed to your program, both locally and on the remote device.",
+            "order": 23
+          },
+          "arm-asm-builder.run.useIntegratedTerminal": {
+            "type": "boolean",
+            "default": false,
+            "title": "Run in Integrated Terminal",
+            "markdownDescription": "If enabled, local runs start in a VS Code terminal instead of the output channel. Use this for programs that read from standard input; the exit code is then not reported in the output channel.",
+            "order": 24
+          }
+        }
+      },
+      {
+        "title": "Remote Device (SSH)",
+        "properties": {
+          "arm-asm-builder.remote.host": {
+            "type": "string",
+            "default": "",
+            "title": "Host",
+            "markdownDescription": "IP address or host name of the ARM device, for example `192.168.1.50` or `raspberrypi.local`.",
+            "order": 30
+          },
+          "arm-asm-builder.remote.port": {
+            "type": "number",
+            "default": 22,
+            "minimum": 1,
+            "maximum": 65535,
+            "title": "Port",
+            "markdownDescription": "SSH port of the remote device.",
+            "order": 31
+          },
+          "arm-asm-builder.remote.username": {
+            "type": "string",
+            "default": "pi",
+            "title": "User Name",
+            "markdownDescription": "SSH user name used to log in to the device.",
+            "order": 32
+          },
+          "arm-asm-builder.remote.password": {
+            "type": "string",
+            "default": "",
+            "title": "Password",
+            "markdownDescription": "SSH password. **Storing a password here writes it to `settings.json` in clear text.** Prefer leaving this empty and running **ARM: Set Remote Password**, which keeps the password in the encrypted VS Code secret storage.",
+            "order": 33
+          },
+          "arm-asm-builder.remote.workingDirectory": {
+            "type": "string",
+            "default": "~/arm-asm-builder",
+            "title": "Remote Working Directory",
+            "markdownDescription": "Directory on the device where sources are uploaded and binaries are built. Created automatically if missing.",
+            "order": 34
+          },
+          "arm-asm-builder.remote.toolchainPrefix": {
+            "type": "string",
+            "default": "",
+            "title": "Remote Toolchain Prefix",
+            "markdownDescription": "Prefix for the toolchain on the device. Normally empty, since a Raspberry Pi builds ARM code with its own native `as`, `ld` and `gcc`.",
+            "order": 35
+          },
+          "arm-asm-builder.remote.uploadExtraFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "title": "Extra Files to Upload",
+            "markdownDescription": "Additional workspace-relative files uploaded next to the current source before building, for example included headers or data files.",
+            "order": 36
+          },
+          "arm-asm-builder.remote.keepFiles": {
+            "type": "boolean",
+            "default": true,
+            "title": "Keep Files on Device",
+            "markdownDescription": "If enabled, uploaded sources and built binaries stay in the remote working directory after a run. Disable to delete them once the program finishes.",
+            "order": 37
+          },
+          "arm-asm-builder.remote.connectTimeout": {
+            "type": "number",
+            "default": 15000,
+            "minimum": 1000,
+            "title": "Connection Timeout (ms)",
+            "markdownDescription": "How long to wait for the SSH handshake before giving up.",
+            "order": 38
+          },
+          "arm-asm-builder.remote.strictHostKeyChecking": {
+            "type": "boolean",
+            "default": true,
+            "title": "Strict Host Key Checking",
+            "markdownDescription": "If enabled, the fingerprint of the device is confirmed on first connection and remembered. A later fingerprint change aborts the connection. Disable only on trusted, isolated networks.",
+            "order": 39
+          }
+        }
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "arm-asm-builder.buildCurrentFile",
+          "when": "resourceExtname == .s || resourceExtname == .S || resourceExtname == .asm",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arm-asm-builder.runLocal",
+          "when": "resourceExtname == .s || resourceExtname == .S || resourceExtname == .asm",
+          "group": "navigation@2"
+        },
+        {
+          "command": "arm-asm-builder.remoteRun",
+          "when": "resourceExtname == .s || resourceExtname == .S || resourceExtname == .asm",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "arm-asm-builder.buildCurrentFile"
+        },
+        {
+          "command": "arm-asm-builder.runLocal"
+        },
+        {
+          "command": "arm-asm-builder.remoteBuild"
+        },
+        {
+          "command": "arm-asm-builder.remoteRun"
+        },
+        {
+          "command": "arm-asm-builder.stopRun"
+        },
+        {
+          "command": "arm-asm-builder.configureRemote"
+        },
+        {
+          "command": "arm-asm-builder.setRemotePassword"
+        },
+        {
+          "command": "arm-asm-builder.clearRemotePassword"
+        },
+        {
+          "command": "arm-asm-builder.testRemoteConnection"
+        },
+        {
+          "command": "arm-asm-builder.openSettings"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "armAsmBuilder",
+          "title": "ARM",
+          "icon": "images/arm_sidebar_icon_simplified.svg"
+        }
+      ]
+    },
+    "views": {
+      "armAsmBuilder": [
+        {
+          "id": "armAsmBuilder.sidebar",
+          "name": "ARM Toolbox",
+          "type": "webview",
+          "icon": "images/arm_sidebar_icon_simplified.svg",
+          "contextualTitle": "ARM Toolbox"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/ssh2": "^1.15.1",
+    "@types/vscode": "^1.90.0",
+    "eslint": "^9.39.5",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.67.0"
+  },
+  "dependencies": {
+    "ssh2": "^1.16.0"
+  }
+}

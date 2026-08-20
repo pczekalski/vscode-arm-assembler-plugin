@@ -1,0 +1,12 @@
+{
+    "arm-asm-builder.architecture": "aarch64",
+    "arm-asm-builder.toolchainPrefix": "aarch64-linux-gnu-",
+    "arm-asm-builder.linkWith": "ld",
+    "arm-asm-builder.useNoStartFiles": true,
+    "arm-asm-builder.entrySymbol": "_start",
+    "arm-asm-builder.outputDirectory": "build",
+    "arm-asm-builder.run.useEmulator": "auto",
+    "arm-asm-builder.remote.host": "157.158.56.57",
+    "arm-asm-builder.remote.port": 53,
+    "arm-asm-builder.remote.username": "zmitac"
+}

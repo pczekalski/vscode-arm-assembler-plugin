@@ -1,0 +1,210 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "ARM Assembler",
+    "scopeName": "source.arm",
+    "patterns": [
+        { "include": "#comments" },
+        { "include": "#preprocessor" },
+        { "include": "#strings" },
+        { "include": "#labels" },
+        { "include": "#directives" },
+        { "include": "#instructions" },
+        { "include": "#conditions" },
+        { "include": "#registers" },
+        { "include": "#numbers" },
+        { "include": "#operators" }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.arm",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.line.at-sign.arm",
+                    "match": "@.*$"
+                },
+                {
+                    "name": "comment.line.semicolon.arm",
+                    "match": ";.*$"
+                },
+                {
+                    "name": "comment.block.arm",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "preprocessor": {
+            "patterns": [
+                {
+                    "name": "meta.preprocessor.arm",
+                    "match": "^\\s*#\\s*(include|define|undef|if|ifdef|ifndef|else|elif|endif|error|warning|pragma)\\b.*$",
+                    "captures": {
+                        "1": { "name": "keyword.control.preprocessor.arm" }
+                    }
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.arm",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.arm",
+                            "match": "\\\\."
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.arm",
+                    "match": "'(\\\\.|[^'\\\\])'"
+                }
+            ]
+        },
+        "labels": {
+            "patterns": [
+                {
+                    "name": "meta.label.arm",
+                    "match": "^\\s*([A-Za-z_.$][A-Za-z0-9_.$]*)\\s*:",
+                    "captures": {
+                        "1": { "name": "entity.name.function.label.arm" }
+                    }
+                },
+                {
+                    "name": "meta.label.numeric.arm",
+                    "match": "^\\s*([0-9]+)\\s*:",
+                    "captures": {
+                        "1": { "name": "entity.name.function.label.arm" }
+                    }
+                }
+            ]
+        },
+        "directives": {
+            "patterns": [
+                {
+                    "name": "keyword.control.directive.arm",
+                    "match": "(?i)^\\s*\\.(section|text|data|bss|rodata|global|globl|local|weak|extern|type|size|align|balign|p2align|space|skip|fill|org|equ|set|word|hword|dword|quad|long|short|byte|ascii|asciz|string|float|double|zero|comm|lcomm|ltorg|pool|arch|arch_extension|cpu|fpu|syntax|thumb|arm|thumb_func|code|end|endm|macro|rept|endr|if|ifdef|ifndef|ifeq|ifne|else|elseif|endif|include|incbin|err|error|warning|req|unreq|purgem|pushsection|popsection|previous|cfi_[a-z_]+|func|endfunc|protected|hidden|inst|inst\\.[nw]|eabi_attribute)\\b"
+                },
+                {
+                    "name": "keyword.control.directive.other.arm",
+                    "match": "^\\s*\\.[A-Za-z_][A-Za-z0-9_.]*\\b"
+                }
+            ]
+        },
+        "instructions": {
+            "patterns": [
+                {
+                    "comment": "Branches and control flow (A64 + A32), with optional condition suffix",
+                    "name": "keyword.control.flow.arm",
+                    "match": "(?i)(?<![\\w.])(b|bl|blr|br|bx|blx|ret|cbz|cbnz|tbz|tbnz|cbeq|beq|bne|bcs|bhs|bcc|blo|bmi|bpl|bvs|bvc|bhi|bls|bge|blt|bgt|ble|bal|b\\.(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)|bl\\.(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)|eret|svc|hvc|smc|brk|hlt|udf|bkpt|wfi|wfe|sev|sevl|yield|nop|isb|dsb|dmb|cbz|tbb|tbh|it|itt|ite|ittt|itte|itet|itee)(?![\\w.])"
+                },
+                {
+                    "comment": "Data movement",
+                    "name": "keyword.operator.mov.arm",
+                    "match": "(?i)(?<![\\w.])(mov|movs|movz|movk|movn|movw|movt|mvn|mvns|mrs|msr|adr|adrp|adrl|cset|csetm|csel|csinc|csinv|csneg|cinc|cinv|cneg|sxtb|sxth|sxtw|uxtb|uxth|uxtw|rev|rev16|rev32|rbit|clz|cls|extr|bfi|bfc|bfxil|sbfx|ubfx|sbfiz|ubfiz|sbfm|ubfm|bfm)[a-z]{0,2}(?![\\w.])"
+                },
+                {
+                    "comment": "Load / store",
+                    "name": "keyword.operator.memory.arm",
+                    "match": "(?i)(?<![\\w.])(ldr|ldrb|ldrh|ldrsb|ldrsh|ldrsw|ldp|ldpsw|ldur|ldurb|ldurh|ldursb|ldursh|ldursw|ldm|ldmia|ldmib|ldmda|ldmdb|ldaxr|ldxr|ldar|ldarb|ldarh|ldaxp|ldxp|str|strb|strh|stp|stur|sturb|sturh|stm|stmia|stmib|stmda|stmdb|stlxr|stxr|stlr|stlrb|stlrh|stlxp|stxp|swp|swpb|push|pop|prfm|prfum|casa|casal|cas|swpa|swpal|ldadd|ldaddal|ldset|ldclr|ldeor)(?![\\w.])"
+                },
+                {
+                    "comment": "Arithmetic and logic",
+                    "name": "keyword.operator.arithmetic.arm",
+                    "match": "(?i)(?<![\\w.])(add|adds|adc|adcs|adr|sub|subs|sbc|sbcs|rsb|rsbs|rsc|neg|negs|ngc|mul|muls|mla|mls|madd|msub|smull|smlal|umull|umlal|smulh|umulh|smaddl|smsubl|umaddl|umsubl|sdiv|udiv|and|ands|orr|orrs|orn|eor|eors|eon|bic|bics|tst|teq|cmp|cmn|ccmp|ccmn|lsl|lsls|lsr|lsrs|asr|asrs|ror|rors|rrx|qadd|qsub|sadd16|uadd8|ssat|usat)(?![\\w.])"
+                },
+                {
+                    "comment": "Floating point and SIMD",
+                    "name": "keyword.operator.simd.arm",
+                    "match": "(?i)(?<![\\w.])(fmov|fadd|fsub|fmul|fdiv|fmadd|fmsub|fnmadd|fnmsub|fabs|fneg|fsqrt|fcmp|fcmpe|fccmp|fcsel|fcvt|fcvtzs|fcvtzu|fcvtas|fcvtau|fcvtms|fcvtmu|fcvtns|fcvtnu|fcvtps|fcvtpu|scvtf|ucvtf|frinta|frinti|frintm|frintn|frintp|frintx|frintz|fmax|fmin|fmaxnm|fminnm|vadd|vsub|vmul|vmla|vmls|vmov|vldr|vstr|vld1|vld2|vld3|vld4|vst1|vst2|vst3|vst4|vdup|vext|vrev|vzip|vuzp|vtrn|dup|ins|umov|smov|addv|uaddlv|saddlv|tbl|tbx|zip1|zip2|uzp1|uzp2|trn1|trn2|xtn|sqxtn|uqxtn|sshll|ushll|cnt|not|movi|mvni)(?![\\w.])"
+                },
+                {
+                    "comment": "System and atomic",
+                    "name": "keyword.other.system.arm",
+                    "match": "(?i)(?<![\\w.])(mcr|mrc|mcrr|mrrc|cdp|ldc|stc|sys|sysl|at|dc|ic|tlbi|clrex|hint|pssbb|ssbb|csdb|esb|smstart|smstop)(?![\\w.])"
+                }
+            ]
+        },
+        "conditions": {
+            "patterns": [
+                {
+                    "name": "keyword.other.condition.arm",
+                    "match": "(?i)(?<=,\\s)(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al|nv)(?![\\w.])"
+                },
+                {
+                    "name": "keyword.other.shift.arm",
+                    "match": "(?i)(?<![\\w.])(lsl|lsr|asr|ror|rrx|uxtb|uxth|uxtw|uxtx|sxtb|sxth|sxtw|sxtx)(?=\\s+[#0-9])"
+                }
+            ]
+        },
+        "registers": {
+            "patterns": [
+                {
+                    "comment": "AArch64 general purpose",
+                    "name": "variable.language.register.arm",
+                    "match": "(?i)(?<![\\w.$])(x(3[01]|[12][0-9]|[0-9])|w(3[01]|[12][0-9]|[0-9])|xzr|wzr|sp|lr|fp|pc|ip)(?![\\w.$])"
+                },
+                {
+                    "comment": "AArch32 general purpose",
+                    "name": "variable.language.register.arm",
+                    "match": "(?i)(?<![\\w.$])(r1[0-5]|r[0-9]|sb|sl|fp|ip|sp|lr|pc|a[1-4]|v[1-8])(?![\\w.$])"
+                },
+                {
+                    "comment": "SIMD / floating point",
+                    "name": "variable.language.register.simd.arm",
+                    "match": "(?i)(?<![\\w.$])([qvdshb](3[01]|[12][0-9]|[0-9]))(\\.(16b|8b|8h|4h|4s|2s|2d|1d|[bhsd]))?(?![\\w.$])"
+                },
+                {
+                    "comment": "Status and system registers",
+                    "name": "variable.language.register.system.arm",
+                    "match": "(?i)(?<![\\w.$])(cpsr|spsr|apsr|fpsr|fpcr|nzcv|daif|elr_el[0-3]|spsr_el[0-3]|sp_el[0-3]|tpidr_el[0-3]|midr_el1|mpidr_el1|currentel|sctlr_el[1-3]|vbar_el[1-3])(?![\\w.$])"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.immediate.arm",
+                    "match": "#-?(0[xX][0-9a-fA-F]+|0[bB][01]+|[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?)"
+                },
+                {
+                    "name": "constant.numeric.hex.arm",
+                    "match": "(?<![\\w.$])0[xX][0-9a-fA-F]+"
+                },
+                {
+                    "name": "constant.numeric.binary.arm",
+                    "match": "(?<![\\w.$])0[bB][01]+"
+                },
+                {
+                    "name": "constant.numeric.decimal.arm",
+                    "match": "(?<![\\w.$#])-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.relocation.arm",
+                    "match": ":(lo12|hi12|abs_g0|abs_g1|abs_g2|abs_g3|abs_g0_nc|abs_g1_nc|abs_g2_nc|got|got_lo12|gottprel|gottprel_lo12|tprel_hi12|tprel_lo12|tprel_lo12_nc|pg_hi21|lower16|upper16):"
+                },
+                {
+                    "name": "keyword.operator.arm",
+                    "match": "[+\\-*/%|&^~!<>=]"
+                },
+                {
+                    "name": "punctuation.separator.arm",
+                    "match": "[,]"
+                },
+                {
+                    "name": "punctuation.section.brackets.arm",
+                    "match": "[\\[\\]{}()]"
+                }
+            ]
+        }
+    }
+}

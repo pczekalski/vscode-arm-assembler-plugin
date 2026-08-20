@@ -1,0 +1,19 @@
+.vscode/**
+.vscode-test/**
+src/**
+examples/**
+.gitignore
+.yarnrc
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/eslint.config.mjs
+**/*.map
+**/*.ts
+**/.vscode-test.*
+images/*.svg.bak
+
+# Ensure these are NOT ignored (standard practice is to leave them out of this file)
+!syntaxes/*.json
+!language-configuration.json
+!images/arm_sidebar_icon.svg
+!images/arm_sidebar_icon_simplified.svg

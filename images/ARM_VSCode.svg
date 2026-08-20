@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="ARM ASM icon">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2fbf3f" stop-opacity="0.95"/>
+      <stop offset="42%" stop-color="#25a033" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#0d1a10" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chip" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3f42"/>
+      <stop offset="45%" stop-color="#1f2325"/>
+      <stop offset="100%" stop-color="#101314"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f2f5f7"/>
+      <stop offset="55%" stop-color="#c3cace"/>
+      <stop offset="100%" stop-color="#8d9599"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b6ff4a"/>
+      <stop offset="55%" stop-color="#57e02a"/>
+      <stop offset="100%" stop-color="#1fa81b"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#e6ebee"/>
+      <stop offset="100%" stop-color="#b7c0c5"/>
+    </linearGradient>
+    <filter id="softshadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="blur"/>
+      <feOffset in="blur" dx="0" dy="6" result="offset"/>
+      <feComponentTransfer in="offset" result="shadow">
+        <feFuncA type="linear" slope="0.55"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="textshadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feOffset in="blur" dx="0" dy="3" result="offset"/>
+      <feComponentTransfer in="offset" result="shadow">
+        <feFuncA type="linear" slope="0.6"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- background plate -->
+  <rect x="8" y="8" width="496" height="496" rx="86" fill="#141a16"/>
+  <rect x="8" y="8" width="496" height="496" rx="86" fill="url(#glow)"/>
+  <rect x="8" y="8" width="496" height="496" rx="86" fill="none" stroke="#0a0d0b" stroke-width="6"/>
+
+  <!-- chip with pins -->
+  <g transform="rotate(-8 256 256)" filter="url(#softshadow)">
+    <g fill="url(#pin)" stroke="#5c6367" stroke-width="2">
+      <!-- top pins -->
+      <rect x="140" y="80" width="24" height="46" rx="5"/>
+      <rect x="192" y="80" width="24" height="46" rx="5"/>
+      <rect x="244" y="80" width="24" height="46" rx="5"/>
+      <rect x="296" y="80" width="24" height="46" rx="5"/>
+      <rect x="348" y="80" width="24" height="46" rx="5"/>
+      <!-- bottom pins -->
+      <rect x="140" y="386" width="24" height="46" rx="5"/>
+      <rect x="192" y="386" width="24" height="46" rx="5"/>
+      <rect x="244" y="386" width="24" height="46" rx="5"/>
+      <rect x="296" y="386" width="24" height="46" rx="5"/>
+      <rect x="348" y="386" width="24" height="46" rx="5"/>
+      <!-- left pins -->
+      <rect x="80" y="140" width="46" height="24" rx="5"/>
+      <rect x="80" y="192" width="46" height="24" rx="5"/>
+      <rect x="80" y="244" width="46" height="24" rx="5"/>
+      <rect x="80" y="296" width="46" height="24" rx="5"/>
+      <rect x="80" y="348" width="46" height="24" rx="5"/>
+      <!-- right pins -->
+      <rect x="386" y="140" width="46" height="24" rx="5"/>
+      <rect x="386" y="192" width="46" height="24" rx="5"/>
+      <rect x="386" y="244" width="46" height="24" rx="5"/>
+      <rect x="386" y="296" width="46" height="24" rx="5"/>
+      <rect x="386" y="348" width="46" height="24" rx="5"/>
+    </g>
+
+    <rect x="118" y="118" width="276" height="276" rx="28" fill="url(#chip)" stroke="#4a5154" stroke-width="5"/>
+    <circle cx="156" cy="156" r="15" fill="#0c0f10" stroke="#4a5154" stroke-width="4"/>
+
+    <text x="256" y="248" text-anchor="middle" font-family="DejaVu Sans, Verdana, Arial, sans-serif"
+          font-size="94" font-weight="bold" letter-spacing="1" fill="url(#word)" filter="url(#textshadow)">ARM</text>
+
+    <rect x="154" y="278" width="204" height="66" rx="12" fill="none" stroke="#37d13a" stroke-width="5"/>
+    <text x="256" y="327" text-anchor="middle" font-family="DejaVu Sans, Verdana, Arial, sans-serif"
+          font-size="50" font-weight="bold" letter-spacing="3" fill="#3ee23f">ASM</text>
+  </g>
+
+  <!-- lightning bolt -->
+  <g filter="url(#softshadow)">
+    <path d="M424 188 L330 326 h56 l-28 112 L452 296 h-60 z"
+          fill="url(#bolt)" stroke="#0c1a0c" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+</svg>

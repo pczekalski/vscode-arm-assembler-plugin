@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"
+    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARM Toolbox</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background: var(--vscode-sideBar-background);
+            padding: 12px;
+        }
+
+        .card {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            background: var(--vscode-editor-background);
+        }
+
+        .title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .row {
+            margin: 6px 0;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .label {
+            opacity: 0.8;
+            display: inline-block;
+            min-width: 92px;
+        }
+
+        button {
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            border: 1px solid var(--vscode-button-border, transparent);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--vscode-button-foreground);
+            background: var(--vscode-button-background);
+        }
+
+        button:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .secondary {
+            color: var(--vscode-button-secondaryForeground);
+            background: var(--vscode-button-secondaryBackground);
+        }
+
+        .secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .warn {
+            color: var(--vscode-editorWarning-foreground);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="title">Local Toolchain</div>
+        <div class="row"><span class="label">Arch:</span><span id="architecture">-</span></div>
+        <div class="row"><span class="label">Prefix:</span><span id="prefix">-</span></div>
+        <div class="row"><span class="label">Link with:</span><span id="linkWith">-</span></div>
+        <div class="row"><span class="label">Build dir:</span><span id="outputDirectory">-</span></div>
+        <div class="row"><span class="label">Run mode:</span><span id="runMode">-</span></div>
+    </div>
+
+    <div class="card">
+        <button id="buildBtn">Build Current File</button>
+        <button id="runBtn">Build and Run Locally</button>
+    </div>
+
+    <div class="card">
+        <div class="title">Remote Device</div>
+        <div class="row"><span class="label">Host:</span><span id="host">-</span></div>
+        <div class="row"><span class="label">Port:</span><span id="port">-</span></div>
+        <div class="row"><span class="label">User:</span><span id="username">-</span></div>
+        <div class="row"><span class="label">Password:</span><span id="password">-</span></div>
+        <div class="row"><span class="label">Work dir:</span><span id="workingDirectory">-</span></div>
+    </div>
+
+    <div class="card">
+        <button id="remoteBuildBtn">Upload and Build on Device</button>
+        <button id="remoteRunBtn">Upload, Build and Run on Device</button>
+        <button id="configureBtn" class="secondary">Configure Remote Device</button>
+        <button id="passwordBtn" class="secondary">Set Remote Password</button>
+        <button id="testBtn" class="secondary">Test Remote Connection</button>
+    </div>
+
+    <div class="card">
+        <button id="stopBtn" class="secondary">Stop Running Program</button>
+        <button id="settingsBtn" class="secondary">Open Settings</button>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+
+        const clicks = {
+            buildBtn: 'build',
+            runBtn: 'run',
+            remoteBuildBtn: 'remoteBuild',
+            remoteRunBtn: 'remoteRun',
+            configureBtn: 'configureRemote',
+            passwordBtn: 'setPassword',
+            testBtn: 'testConnection',
+            stopBtn: 'stop',
+            settingsBtn: 'openSettings'
+        };
+
+        for (const [id, command] of Object.entries(clicks)) {
+            document.getElementById(id).addEventListener('click', () => {
+                vscode.postMessage({ command });
+            });
+        }
+
+        function setText(id, value) {
+            document.getElementById(id).textContent = value === undefined || value === '' ? '-' : String(value);
+        }
+
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+
+            if (message.type !== 'state') {
+                return;
+            }
+
+            setText('architecture', message.architecture);
+            setText('prefix', message.prefix || '(native)');
+            setText('linkWith', message.linkWith);
+            setText('outputDirectory', message.outputDirectory);
+            setText('runMode', message.runMode);
+            setText('host', message.host || 'not configured');
+            setText('port', message.port);
+            setText('username', message.username);
+            setText('workingDirectory', message.workingDirectory);
+
+            const password = document.getElementById('password');
+            password.textContent = message.password ?? 'not set';
+            password.className = message.password === 'not set' ? 'warn' : '';
+        });
+    </script>
+</body>
+</html>
