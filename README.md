@@ -42,6 +42,7 @@ It provides a minimal, fast workflow similar to PlatformIO, but focused on **pur
 - ▶ Run the program locally — natively on ARM hosts, or through QEMU user-mode emulation on x86
 - 🌐 Upload, build and run on a remote ARM device over SSH, with the terminal output streamed back
 - 🔐 Password kept in the encrypted VS Code secret storage, with SSH host key confirmation
+- 🎓 Laboratory mode for shared computers: the device lives in the VS Code session only
 - 🎨 ARM assembly syntax highlighting (AArch64 and AArch32)
 - ❗ Clickable assembler errors (Problems panel integration), local **and** remote
 - 📌 Status bar buttons and a sidebar with the current toolchain and device state
@@ -148,6 +149,10 @@ ARM: Configure Remote Device
 which asks for **IP address / host name**, **port**, **user name**, **working directory** and
 **password**, then opens the settings page so the saved values are visible straight away.
 
+The wizard is **all or nothing**: nothing is written until the last answer is in. Pressing
+`Escape` at any prompt — including the password — leaves the previously configured device
+exactly as it was, rather than leaving a new address paired with the old password.
+
 Where those answers end up:
 
 | Value | Stored in |
@@ -158,6 +163,58 @@ Where those answers end up:
 If the same key is also set in the workspace (`.vscode/settings.json`), that copy is rewritten with
 the new value as well. Otherwise the workspace value would keep overriding the User scope and the
 Settings editor would disagree with what the prompts just accepted.
+
+#### Editing the device in the settings
+
+The wizard is not the only way in: host, port, user name and password can be edited directly in the
+Settings editor, and every command opens its own SSH connection, so the next build or run already
+uses the new values.
+
+The stored password follows along. Passwords are kept in the secret storage under the device they
+belong to (`user@host:port`), so changing the address, the port or the user name would otherwise
+leave the password behind and cause a new password prompt. Instead, the extension notices the edit
+and moves the stored password to the device the settings now describe — useful when a Raspberry Pi
+just got a new DHCP address. If the new device already has a password of its own, that one is kept.
+Should the two devices need different passwords, run **ARM: Set Remote Password** after the change.
+
+Typing a password into `arm-asm-builder.remote.password` is also noticed: the extension offers to
+move it into the encrypted secret storage and clear the clear-text setting. Choosing **Keep in
+Settings** silences the offer for good.
+
+---
+
+### 🎓 Laboratory Mode
+
+```json
+"arm-asm-builder.remote.laboratoryMode": true
+```
+
+For a classroom where every student works with a different device on a shared computer, and the
+address of the previous student is easy to inherit by accident. With this flag on:
+
+| | Laboratory mode | Normal use |
+|---|---|---|
+| Host, port and user name | Memory only, gone at the next VS Code start | `settings.json` |
+| Password | Memory only, gone at the next VS Code start | Encrypted secret storage |
+| Remembered SSH host keys | Forgotten at every start | Remembered |
+| Working directory, toolchain, build flags | Stored as usual | Stored as usual |
+
+The device is all or nothing: every start — and the moment the flag is switched on — clears
+`remote.host`, `remote.port`, `remote.username` and `remote.password` from the settings and deletes
+any password left in the secret storage, so the session begins on a clean slate and nothing about the
+device outlives it. Host keys are dropped as well, because the same address is usually a different
+machine in the next session and a remembered fingerprint would only raise a false alarm.
+
+A device cannot be preset for the room this way: everything is entered per session, through
+**ARM: Configure Remote Device**, which asks for all four values in one pass.
+
+The setting has machine scope: it belongs to the computer, and a workspace cannot switch it off.
+Students configure their device with **ARM: Configure Remote Device** — in this mode the wizard does
+not open the Settings editor afterwards, because there is nothing there to show. The sidebar marks
+the session with a **Laboratory mode** badge and reports the password as *this session only*.
+
+Each VS Code window keeps its own session values, and switching the flag back off starts from the
+settings again.
 
 On the first connection the SSH host key fingerprint is shown for confirmation and then remembered.
 
@@ -193,6 +250,17 @@ You can configure them via:
 ---
 
 ### ⚙️ Available Settings
+
+#### 🎓 Laboratory Mode
+
+```json
+"arm-asm-builder.remote.laboratoryMode": false
+```
+Keeps the remote device in the VS Code session only, for shared laboratory computers. Listed first
+in the Settings editor as well, because it decides whether every other device value below is stored
+at all. See [Laboratory Mode](#-laboratory-mode).
+
+---
 
 #### 🔧 Toolchain
 
@@ -300,7 +368,9 @@ Address, SSH port and user name of the ARM device.
 ```json
 "arm-asm-builder.remote.password": ""
 ```
-Optional. **Anything put here is stored in clear text.** Prefer **ARM: Set Remote Password**, which uses the encrypted secret storage.
+Optional, and it takes precedence over the stored password. **Anything put here is stored in clear text**,
+so the extension offers to move it into the secret storage. Prefer **ARM: Set Remote Password**, which
+writes to the encrypted secret storage in the first place.
 
 ```json
 "arm-asm-builder.remote.workingDirectory": "~/arm-asm-builder"
@@ -372,7 +442,7 @@ Handshake timeout in milliseconds, and host key confirmation on first connection
 | `ARM: Stop Running Program` | Terminate the running local process or remote session |
 | `ARM: Configure Remote Device` | Ask for IP, port, user name and password |
 | `ARM: Set Remote Password` | Store the SSH password in the encrypted secret storage |
-| `ARM: Clear Stored Remote Password` | Remove the stored password |
+| `ARM: Clear Stored Remote Password` | Remove the stored password, and optionally the clear-text one in the settings |
 | `ARM: Test Remote Connection` | Log in, report `uname -a` and the assembler version |
 | `ARM: Open Settings` | Open the settings of this extension |
 

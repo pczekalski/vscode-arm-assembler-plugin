@@ -17,6 +17,8 @@ function describePassword(source: PasswordSource): string {
             return 'in settings (clear text)';
         case 'secret-storage':
             return 'stored (secret storage)';
+        case 'session':
+            return 'this session only';
         default:
             return 'not set';
     }
@@ -88,6 +90,7 @@ export class ArmSidebarProvider implements vscode.WebviewViewProvider {
             linkWith: toolchain.linkWith + (toolchain.useNoStartFiles ? ' (-nostartfiles)' : ''),
             outputDirectory: toolchain.outputDirectory,
             runMode,
+            laboratoryMode: remote.laboratoryMode,
             host: remote.host,
             port: remote.port,
             username: remote.username,

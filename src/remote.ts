@@ -6,9 +6,15 @@ import { Client } from 'ssh2';
 import {
     RemoteSettings,
     applyPrefix,
+    clearPersistedSetting,
+    clearSessionRemote,
+    getPersistedRemoteDevice,
     getRemoteSettings,
+    getSessionRemote,
     getRunSettings,
     getToolchain,
+    isLaboratoryMode,
+    setSessionRemote,
     updateSetting
 } from './config';
 import { publishDiagnosticsFromText } from './diagnostics';
@@ -22,6 +28,8 @@ import {
 } from './build';
 
 const HOST_KEY_STATE = 'arm-asm-builder.knownHostKeys';
+const REMOTE_IDENTITY_STATE = 'arm-asm-builder.remoteIdentity';
+const KEEP_CLEAR_TEXT_PASSWORD_STATE = 'arm-asm-builder.keepClearTextPassword';
 
 const activeConnections = new Set<Client>();
 
@@ -58,11 +66,219 @@ export function hasRemoteSession(): boolean {
     return activeConnections.size > 0;
 }
 
-function secretKey(remote: RemoteSettings): string {
-    return `arm-asm-builder.password:${remote.username}@${remote.host}:${remote.port}`;
+/** The device a stored password belongs to. */
+interface RemoteIdentity {
+    host: string;
+    port: number;
+    username: string;
 }
 
-export type PasswordSource = 'settings' | 'secret-storage' | 'none';
+function identityOf(remote: RemoteSettings): RemoteIdentity {
+    return { host: remote.host, port: remote.port, username: remote.username };
+}
+
+function describeIdentity(identity: RemoteIdentity): string {
+    return `${identity.username}@${identity.host}:${identity.port}`;
+}
+
+function sameIdentity(a: RemoteIdentity, b: RemoteIdentity): boolean {
+    return a.host === b.host && a.port === b.port && a.username === b.username;
+}
+
+function secretKeyFor(identity: RemoteIdentity): string {
+    return `arm-asm-builder.password:${describeIdentity(identity)}`;
+}
+
+function secretKey(remote: RemoteSettings): string {
+    return secretKeyFor(identityOf(remote));
+}
+
+/**
+ * Carries the stored password over to the device the settings now describe.
+ *
+ * Passwords live in the secret storage under `user@host:port`, so editing the host, port
+ * or user name in the Settings editor would otherwise orphan the stored password and make
+ * the extension ask for it again, as if the change had not been picked up.
+ */
+async function movePasswordToNewIdentity(
+    context: vscode.ExtensionContext,
+    previous: RemoteIdentity,
+    current: RemoteIdentity
+): Promise<void> {
+    if (!current.host || !current.username) {
+        return;
+    }
+
+    const previousKey = secretKeyFor(previous);
+    const currentKey = secretKeyFor(current);
+
+    if (previousKey === currentKey) {
+        return;
+    }
+
+    const stored = await context.secrets.get(previousKey);
+
+    if (stored === undefined) {
+        return;
+    }
+
+    // A password already stored for the new device wins; the old one is left untouched
+    // rather than silently overwritten.
+    if ((await context.secrets.get(currentKey)) !== undefined) {
+        return;
+    }
+
+    await context.secrets.store(currentKey, stored);
+    await context.secrets.delete(previousKey);
+
+    vscode.window.showInformationMessage(
+        `Remote device is now ${describeIdentity(current)}. The stored password moved with it; ` +
+        'run "ARM: Set Remote Password" if the new device uses a different one.'
+    );
+}
+
+/**
+ * Offers to move a password typed into `remote.password` into the encrypted secret storage.
+ * Asking rather than moving it silently keeps the Settings editor from changing under the
+ * user's hands while they are still typing.
+ */
+async function offerToStoreClearTextPassword(
+    context: vscode.ExtensionContext,
+    remote: RemoteSettings
+): Promise<void> {
+    if (!remote.password || !remote.host || !remote.username) {
+        return;
+    }
+
+    if (context.globalState.get<boolean>(KEEP_CLEAR_TEXT_PASSWORD_STATE, false)) {
+        return;
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+        `The SSH password for ${remote.username}@${remote.host} is stored in clear text in settings.json.`,
+        'Move to Secret Storage',
+        'Keep in Settings'
+    );
+
+    if (choice === 'Move to Secret Storage') {
+        await context.secrets.store(secretKey(remote), remote.password);
+        await updateSetting('remote.password', '');
+        vscode.window.showInformationMessage(
+            'Password moved to the encrypted secret storage and removed from the settings.'
+        );
+        return;
+    }
+
+    if (choice === 'Keep in Settings') {
+        await context.globalState.update(KEEP_CLEAR_TEXT_PASSWORD_STATE, true);
+    }
+}
+
+/**
+ * Keeps the stored credentials in step with the remote settings. Called once on activation
+ * and after every change to `arm-asm-builder.remote.*`, so what the Settings editor shows
+ * is what the next connection uses.
+ */
+export async function syncRemoteIdentity(context: vscode.ExtensionContext): Promise<void> {
+    const remote = getRemoteSettings();
+
+    // Laboratory Mode stores nothing, so there is no stored password to follow the device
+    // and no clear-text password worth moving into the secret storage.
+    if (remote.laboratoryMode) {
+        return;
+    }
+
+    const current = identityOf(remote);
+    const previous = context.globalState.get<RemoteIdentity>(REMOTE_IDENTITY_STATE);
+
+    if (previous && !sameIdentity(previous, current)) {
+        await movePasswordToNewIdentity(context, previous, current);
+    }
+
+    await context.globalState.update(REMOTE_IDENTITY_STATE, current);
+    await offerToStoreClearTextPassword(context, remote);
+}
+
+/**
+ * What the laboratory wipe removes from the settings: the whole device, address, port, user
+ * name and password alike. Nothing about the device is stored in this mode, so nothing about
+ * it can be inherited by the next student.
+ */
+const DEVICE_SETTING_KEYS = ['remote.host', 'remote.port', 'remote.username', 'remote.password'];
+
+/**
+ * Puts the computer into a Laboratory Mode session: the device configuration is removed from
+ * the settings, from the secret storage and from the remembered host keys, so this VS Code
+ * session starts from a clean slate and leaves nothing behind for the next student.
+ *
+ * `absorb` keeps the device that is currently configured usable for the rest of the session,
+ * which is what a user switching the mode on mid-session expects. On startup it is off, so
+ * whatever survived on the computer is simply dropped.
+ */
+export async function enterLaboratorySession(
+    context: vscode.ExtensionContext,
+    output: vscode.OutputChannel,
+    options: { absorb: boolean }
+): Promise<void> {
+    const persisted = getPersistedRemoteDevice();
+
+    if (options.absorb) {
+        if (persisted.host) {
+            setSessionRemote('host', persisted.host);
+        }
+
+        setSessionRemote('port', persisted.port);
+
+        if (persisted.username) {
+            setSessionRemote('username', persisted.username);
+        }
+
+        if (persisted.password) {
+            setSessionRemote('password', persisted.password);
+        }
+    } else {
+        clearSessionRemote();
+    }
+
+    const cleared: string[] = [];
+
+    for (const key of DEVICE_SETTING_KEYS) {
+        if (await clearPersistedSetting(key)) {
+            cleared.push(key);
+        }
+    }
+
+    // Passwords are keyed by device, so the identity recorded earlier is the only handle on
+    // what may still be in the secret storage.
+    const identities: RemoteIdentity[] = [];
+    const recorded = context.globalState.get<RemoteIdentity>(REMOTE_IDENTITY_STATE);
+
+    if (recorded) {
+        identities.push(recorded);
+    }
+
+    if (persisted.host && persisted.username) {
+        identities.push({ host: persisted.host, port: persisted.port, username: persisted.username });
+    }
+
+    for (const identity of identities) {
+        await context.secrets.delete(secretKeyFor(identity));
+    }
+
+    await context.globalState.update(REMOTE_IDENTITY_STATE, undefined);
+
+    // The same address is a different machine in the next laboratory session, so a remembered
+    // fingerprint would only produce a false "the host key has changed" warning.
+    await context.globalState.update(HOST_KEY_STATE, undefined);
+
+    output.appendLine('Laboratory mode: the remote device is kept in this VS Code session only.');
+
+    if (cleared.length > 0) {
+        output.appendLine(`Laboratory mode: cleared from the settings: ${cleared.join(', ')}.`);
+    }
+}
+
+export type PasswordSource = 'settings' | 'secret-storage' | 'session' | 'none';
 
 /**
  * Where the password for the configured device currently comes from. Reported in the
@@ -72,6 +288,14 @@ export async function getPasswordSource(
     context: vscode.ExtensionContext,
     remote: RemoteSettings = getRemoteSettings()
 ): Promise<PasswordSource> {
+    if (remote.laboratoryMode) {
+        if (getSessionRemote().password) {
+            return 'session';
+        }
+
+        return remote.password ? 'settings' : 'none';
+    }
+
     if (remote.password) {
         return 'settings';
     }
@@ -102,6 +326,23 @@ async function resolvePassword(
 ): Promise<string | undefined> {
     if (remote.password) {
         return remote.password;
+    }
+
+    // Laboratory Mode asks once per VS Code session and remembers the answer in memory only.
+    if (remote.laboratoryMode) {
+        const entered = await vscode.window.showInputBox({
+            title: 'ARM Remote Password (laboratory mode)',
+            prompt: `Password for ${remote.username}@${remote.host}:${remote.port} — kept for this VS Code session only`,
+            password: true,
+            ignoreFocusOut: true
+        });
+
+        if (entered === undefined) {
+            return undefined;
+        }
+
+        setSessionRemote('password', entered);
+        return entered;
     }
 
     const stored = await context.secrets.get(secretKey(remote));
@@ -135,13 +376,23 @@ export async function setRemotePassword(context: vscode.ExtensionContext): Promi
     }
 
     const entered = await vscode.window.showInputBox({
-        title: 'ARM Remote Password',
-        prompt: `Password for ${remote.username}@${remote.host}:${remote.port}`,
+        title: remote.laboratoryMode ? 'ARM Remote Password (laboratory mode)' : 'ARM Remote Password',
+        prompt: remote.laboratoryMode
+            ? `Password for ${remote.username}@${remote.host}:${remote.port} — kept for this VS Code session only`
+            : `Password for ${remote.username}@${remote.host}:${remote.port}`,
         password: true,
         ignoreFocusOut: true
     });
 
     if (entered === undefined) {
+        return;
+    }
+
+    if (remote.laboratoryMode) {
+        setSessionRemote('password', entered);
+        vscode.window.showInformationMessage(
+            `Password kept for ${remote.username}@${remote.host} in this VS Code session only (laboratory mode).`
+        );
         return;
     }
 
@@ -153,20 +404,50 @@ export async function setRemotePassword(context: vscode.ExtensionContext): Promi
 
 export async function clearRemotePassword(context: vscode.ExtensionContext): Promise<void> {
     const remote = getRemoteSettings();
+
+    if (remote.laboratoryMode) {
+        clearSessionRemote('password');
+        vscode.window.showInformationMessage('Remote password cleared for this session.');
+        return;
+    }
+
     await context.secrets.delete(secretKey(remote));
 
     if (remote.password) {
-        vscode.window.showWarningMessage(
-            'Stored password removed. A password is still present in arm-asm-builder.remote.password; clear it in the settings as well.'
+        const choice = await vscode.window.showWarningMessage(
+            'Stored password removed, but a password is still present in arm-asm-builder.remote.password.',
+            'Clear It Too',
+            'Keep It'
         );
+
+        if (choice === 'Clear It Too') {
+            await updateSetting('remote.password', '');
+            vscode.window.showInformationMessage('Password removed from the settings as well.');
+        }
+
         return;
     }
 
     vscode.window.showInformationMessage('Stored remote password removed.');
 }
 
+/**
+ * Asks for the whole device and applies it in one go.
+ *
+ * Nothing is written until every answer is in: address, port, user name, working directory
+ * and password are one unit, so escaping out of any prompt leaves the previous device exactly
+ * as it was. A half-applied device — a new address still paired with the old password, say —
+ * would otherwise fail to connect for reasons that are hard to see in the Settings editor.
+ */
 export async function configureRemote(context: vscode.ExtensionContext): Promise<void> {
     const remote = getRemoteSettings();
+    const laboratoryMode = isLaboratoryMode();
+
+    const cancelled = async (): Promise<void> => {
+        vscode.window.showInformationMessage(
+            'Remote device configuration cancelled. Nothing was changed.'
+        );
+    };
 
     const host = await vscode.window.showInputBox({
         title: 'ARM Remote Device (1/5)',
@@ -178,7 +459,7 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
     });
 
     if (host === undefined) {
-        return;
+        return cancelled();
     }
 
     const portText = await vscode.window.showInputBox({
@@ -195,7 +476,7 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
     });
 
     if (portText === undefined) {
-        return;
+        return cancelled();
     }
 
     const username = await vscode.window.showInputBox({
@@ -207,7 +488,7 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
     });
 
     if (username === undefined) {
-        return;
+        return cancelled();
     }
 
     const workingDirectory = await vscode.window.showInputBox({
@@ -220,25 +501,50 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
     });
 
     if (workingDirectory === undefined) {
-        return;
+        return cancelled();
     }
-
-    // Everything entered here is written straight into the extension settings, so the
-    // Settings editor and the prompts always show the same values.
-    await updateSetting('remote.host', host.trim());
-    await updateSetting('remote.port', Number.parseInt(portText, 10));
-    await updateSetting('remote.username', username.trim());
-    await updateSetting('remote.workingDirectory', workingDirectory.trim());
 
     const password = await vscode.window.showInputBox({
         title: 'ARM Remote Device (5/5)',
-        prompt: `Password for ${username.trim()}@${host.trim()} (stored in the encrypted secret storage)`,
+        prompt: laboratoryMode
+            ? `Password for ${username.trim()}@${host.trim()} (kept for this VS Code session only)`
+            : `Password for ${username.trim()}@${host.trim()} (stored in the encrypted secret storage)`,
         password: true,
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
+        validateInput: (value) =>
+            (value.length === 0 ? 'The password must not be empty.' : undefined)
     });
 
-    if (password !== undefined) {
+    if (password === undefined) {
+        return cancelled();
+    }
+
+    // Every answer is in, so the device can be applied as a whole. In Laboratory Mode
+    // updateSetting() routes the four device values into the session instead of the disk.
+    const port = Number.parseInt(portText, 10);
+
+    await updateSetting('remote.host', host.trim());
+    await updateSetting('remote.port', port);
+    await updateSetting('remote.username', username.trim());
+    await updateSetting('remote.workingDirectory', workingDirectory.trim());
+
+    if (laboratoryMode) {
+        setSessionRemote('password', password);
+    } else {
+        // Recorded before the password is stored, so the settings watcher sees an identity it
+        // already knows and leaves the freshly stored password alone.
+        await context.globalState.update(REMOTE_IDENTITY_STATE, identityOf(getRemoteSettings()));
         await context.secrets.store(secretKey(getRemoteSettings()), password);
+    }
+
+    const device = `${username.trim()}@${host.trim()}:${port}`;
+
+    if (laboratoryMode) {
+        // There is nothing to show in the Settings editor: the device only exists in memory.
+        vscode.window.showInformationMessage(
+            `Remote device set to ${device} for this VS Code session (laboratory mode).`
+        );
+        return;
     }
 
     // Show the result, so the values that were just entered are visible where they live.
@@ -247,9 +553,7 @@ export async function configureRemote(context: vscode.ExtensionContext): Promise
         '@ext:pczekalski-dev.arm-assembler remote'
     );
 
-    vscode.window.showInformationMessage(
-        `Remote device saved: ${username.trim()}@${host.trim()}:${Number.parseInt(portText, 10)}.`
-    );
+    vscode.window.showInformationMessage(`Remote device saved: ${device}.`);
 }
 
 function fingerprintOf(key: Buffer): string {

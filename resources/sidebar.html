@@ -69,6 +69,21 @@
         .warn {
             color: var(--vscode-editorWarning-foreground);
         }
+
+        .badge {
+            display: none;
+            margin: -4px 0 10px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+            background: var(--vscode-inputValidation-infoBackground, transparent);
+            border: 1px solid var(--vscode-inputValidation-infoBorder, var(--vscode-panel-border));
+        }
+
+        .badge.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +103,7 @@
 
     <div class="card">
         <div class="title">Remote Device</div>
+        <div id="laboratoryBadge" class="badge">Laboratory mode — this VS Code session only</div>
         <div class="row"><span class="label">Host:</span><span id="host">-</span></div>
         <div class="row"><span class="label">Port:</span><span id="port">-</span></div>
         <div class="row"><span class="label">User:</span><span id="username">-</span></div>
@@ -145,6 +161,10 @@
             setText('linkWith', message.linkWith);
             setText('outputDirectory', message.outputDirectory);
             setText('runMode', message.runMode);
+            document
+                .getElementById('laboratoryBadge')
+                .classList.toggle('visible', Boolean(message.laboratoryMode));
+
             setText('host', message.host || 'not configured');
             setText('port', message.port);
             setText('username', message.username);

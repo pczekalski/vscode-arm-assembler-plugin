@@ -1,15 +1,17 @@
 import * as vscode from 'vscode';
 
-import { CONFIG_SECTION } from './config';
+import { CONFIG_SECTION, isLaboratoryMode } from './config';
 import { buildCurrentFile, isArmSource, runLocally } from './build';
 import { hasRunningProcess, stopAllProcesses } from './process';
 import {
     clearRemotePassword,
     configureRemote,
+    enterLaboratorySession,
     hasRemoteSession,
     remoteBuildAndRun,
     setRemotePassword,
     stopRemoteSessions,
+    syncRemoteIdentity,
     testRemoteConnection
 } from './remote';
 import { ArmSidebarProvider } from './sidebar';
@@ -164,11 +166,57 @@ export function activate(context: vscode.ExtensionContext): void {
         sidebarProvider
     );
 
+    // Credentials are keyed by the device the settings describe, so an edit in the Settings
+    // editor has to be carried over to the secret storage. Editing settings.json fires per
+    // keystroke, so the work is deferred until the value stops changing.
+    let remoteSyncTimer: NodeJS.Timeout | undefined;
+    let laboratoryMode = isLaboratoryMode();
+
     const configChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration(CONFIG_SECTION)) {
-            sidebarProvider.refresh();
+        if (!event.affectsConfiguration(CONFIG_SECTION)) {
+            return;
         }
+
+        sidebarProvider.refresh();
+
+        if (!event.affectsConfiguration(`${CONFIG_SECTION}.remote`)) {
+            return;
+        }
+
+        // Switching the mode on takes the device off disk straight away, keeping it usable
+        // for the rest of this session.
+        if (isLaboratoryMode() !== laboratoryMode) {
+            laboratoryMode = !laboratoryMode;
+
+            if (laboratoryMode) {
+                void enterLaboratorySession(context, output, { absorb: true }).then(() => {
+                    sidebarProvider.refresh();
+                    vscode.window.showInformationMessage(
+                        'Laboratory mode is on: the remote device is kept in this VS Code session only.'
+                    );
+                });
+
+                return;
+            }
+        }
+
+        if (remoteSyncTimer) {
+            clearTimeout(remoteSyncTimer);
+        }
+
+        remoteSyncTimer = setTimeout(() => {
+            remoteSyncTimer = undefined;
+            void syncRemoteIdentity(context).then(() => sidebarProvider.refresh());
+        }, 1500);
     });
+
+    if (laboratoryMode) {
+        // A previous session may have left a device behind on a shared computer.
+        void enterLaboratorySession(context, output, { absorb: false })
+            .then(() => sidebarProvider.refresh());
+    } else {
+        void syncRemoteIdentity(context);
+    }
 
     context.subscriptions.push(
         output,
@@ -182,7 +230,12 @@ export function activate(context: vscode.ExtensionContext): void {
         documentCloseDisposable,
         sidebarDisposable,
         configChangeDisposable,
-        new vscode.Disposable(() => clearInterval(stopButtonTimer))
+        new vscode.Disposable(() => clearInterval(stopButtonTimer)),
+        new vscode.Disposable(() => {
+            if (remoteSyncTimer) {
+                clearTimeout(remoteSyncTimer);
+            }
+        })
     );
 }
 

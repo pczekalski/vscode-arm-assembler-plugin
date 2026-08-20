@@ -110,7 +110,22 @@
     ],
     "configuration": [
       {
+        "title": "Laboratory Mode",
+        "order": 1,
+        "properties": {
+          "arm-asm-builder.remote.laboratoryMode": {
+            "type": "boolean",
+            "default": false,
+            "scope": "machine",
+            "title": "Laboratory Mode",
+            "markdownDescription": "Keeps the remote device in the current VS Code session only. Intended for shared laboratory computers where every student works with a different device.\n\nThe address, port, user name and password entered through the prompts or the sidebar are held in memory: nothing is written to `settings.json` or to the encrypted secret storage, and everything is gone the next time VS Code starts, so nobody inherits the previous student's device by accident. Remembered SSH host keys are forgotten as well, since the same address is usually a different machine in the next session.\n\nOn every start, and when this option is switched on, the host, port, user name and password are cleared from the settings and any stored password is deleted, so the device configuration is either fully in the session or not there at all. The working directory, the toolchain and the build flags are stored as usual.",
+            "order": 1
+          }
+        }
+      },
+      {
         "title": "Compiler and Linker",
+        "order": 2,
         "properties": {
           "arm-asm-builder.architecture": {
             "type": "string",
@@ -253,6 +268,7 @@
       },
       {
         "title": "Local Run",
+        "order": 3,
         "properties": {
           "arm-asm-builder.run.useEmulator": {
             "type": "string",
@@ -306,6 +322,7 @@
       },
       {
         "title": "Remote Device (SSH)",
+        "order": 4,
         "properties": {
           "arm-asm-builder.remote.host": {
             "type": "string",

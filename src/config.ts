@@ -34,6 +34,7 @@ export interface RunSettings {
 }
 
 export interface RemoteSettings {
+    laboratoryMode: boolean;
     host: string;
     port: number;
     username: string;
@@ -51,6 +52,108 @@ export function getConfig(): vscode.WorkspaceConfiguration {
 }
 
 /**
+ * Device values that Laboratory Mode keeps in memory instead of on disk. Everything else in
+ * the `remote` section is stored normally, so a lab administrator can still preset the
+ * working directory or the toolchain for all students.
+ */
+export interface SessionRemote {
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+}
+
+export type SessionRemoteKey = keyof SessionRemote;
+
+const SESSION_REMOTE_KEYS: SessionRemoteKey[] = ['host', 'port', 'username', 'password'];
+
+/**
+ * Lives for as long as the extension host does, which is exactly the lifetime Laboratory
+ * Mode promises: what a student enters is forgotten when VS Code closes.
+ */
+let sessionRemote: SessionRemote = {};
+
+export function isLaboratoryMode(): boolean {
+    return getConfig().get<boolean>('remote.laboratoryMode', false);
+}
+
+export function getSessionRemote(): SessionRemote {
+    return { ...sessionRemote };
+}
+
+export function setSessionRemote(key: SessionRemoteKey, value: string | number): void {
+    if (key === 'port') {
+        sessionRemote.port = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+        return;
+    }
+
+    sessionRemote[key] = String(value);
+}
+
+export function clearSessionRemote(key?: SessionRemoteKey): void {
+    if (key) {
+        delete sessionRemote[key];
+        return;
+    }
+
+    sessionRemote = {};
+}
+
+/**
+ * Maps a settings key such as `remote.host` onto the session field it belongs to, or
+ * `undefined` for keys that are stored on disk even in Laboratory Mode.
+ */
+function sessionRemoteKeyOf(key: string): SessionRemoteKey | undefined {
+    const match = /^remote\.(.+)$/.exec(key);
+    const field = match?.[1] as SessionRemoteKey | undefined;
+
+    return field && SESSION_REMOTE_KEYS.includes(field) ? field : undefined;
+}
+
+/**
+ * Removes a setting from every scope that defines it. Used when Laboratory Mode takes the
+ * device configuration off disk; writing an empty string instead would leave the key behind
+ * in `settings.json` and still look configured.
+ */
+export async function clearPersistedSetting(key: string): Promise<boolean> {
+    const config = getConfig();
+    const scopes = config.inspect(key);
+    let cleared = false;
+
+    if (scopes?.globalValue !== undefined) {
+        await config.update(key, undefined, vscode.ConfigurationTarget.Global);
+        cleared = true;
+    }
+
+    if (scopes?.workspaceValue !== undefined) {
+        await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+        cleared = true;
+    }
+
+    if (scopes?.workspaceFolderValue !== undefined) {
+        await config.update(key, undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+        cleared = true;
+    }
+
+    return cleared;
+}
+
+/**
+ * The device as it is stored on disk, ignoring the session values that Laboratory Mode
+ * layers on top.
+ */
+export function getPersistedRemoteDevice(): Required<SessionRemote> {
+    const config = getConfig();
+
+    return {
+        host: config.get<string>('remote.host', '').trim(),
+        port: config.get<number>('remote.port', 22),
+        username: config.get<string>('remote.username', 'pi').trim(),
+        password: config.get<string>('remote.password', '')
+    };
+}
+
+/**
  * Persists a setting so that what the user typed in a prompt is also what the Settings
  * editor shows.
  *
@@ -60,6 +163,20 @@ export function getConfig(): vscode.WorkspaceConfiguration {
  * the same value instead of being left behind.
  */
 export async function updateSetting(key: string, value: unknown): Promise<void> {
+    const sessionKey = sessionRemoteKeyOf(key);
+
+    // In Laboratory Mode the device never reaches the disk: the prompts and the wizard write
+    // into the session instead, and read back from it through getRemoteSettings().
+    if (sessionKey && isLaboratoryMode()) {
+        if (value === undefined || value === '') {
+            clearSessionRemote(sessionKey);
+        } else {
+            setSessionRemote(sessionKey, value as string | number);
+        }
+
+        return;
+    }
+
     const config = getConfig();
     const scopes = config.inspect(key);
 
@@ -160,12 +277,15 @@ export function getRunSettings(): RunSettings {
 
 export function getRemoteSettings(): RemoteSettings {
     const config = getConfig();
+    const laboratoryMode = config.get<boolean>('remote.laboratoryMode', false);
+    const session = laboratoryMode ? sessionRemote : {};
 
     return {
-        host: config.get<string>('remote.host', '').trim(),
-        port: config.get<number>('remote.port', 22),
-        username: config.get<string>('remote.username', 'pi').trim(),
-        password: config.get<string>('remote.password', ''),
+        laboratoryMode,
+        host: (session.host ?? config.get<string>('remote.host', '')).trim(),
+        port: session.port ?? config.get<number>('remote.port', 22),
+        username: (session.username ?? config.get<string>('remote.username', 'pi')).trim(),
+        password: session.password ?? config.get<string>('remote.password', ''),
         workingDirectory: config.get<string>('remote.workingDirectory', '~/arm-asm-builder').trim(),
         toolchainPrefix: config.get<string>('remote.toolchainPrefix', '').trim(),
         uploadExtraFiles: config.get<string[]>('remote.uploadExtraFiles', []),
